@@ -50,12 +50,12 @@ class sidebar:
             find_sites.reset_index(drop=True)
             st.dataframe(find_sites)  
 
-    def include_word(self):
-        word = st.sidebar.multiselect("**📗 포함 단어 입력**", ["단어1", "단어2", "단어3", "단어4", "단어5"])
-        st.sidebar.text("\n")
-
-    def exclude_word(self):
-        word = st.sidebar.multiselect("**📙 제외 단어 입력**", ["단어1", "단어2", "단어3", "단어4", "단어5"])
+    def title_search(self):
+        title = st.sidebar.text_input("**📙 제목으로 검색**")
+        if title:
+            find_sites = df_dataset.query('title.str.contains(@title)')
+            find_sites.reset_index(drop=True)
+            st.dataframe(find_sites)
 
 st.title("📈 데이터셋 검색")
 
@@ -64,8 +64,7 @@ df_dataset = get_dataset()
 sidebar = sidebar()
 sidebar.period_search()
 sidebar.select_site()
-sidebar.include_word()
-sidebar.exclude_word()
+sidebar.title_search()
 
 
 
