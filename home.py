@@ -1,40 +1,129 @@
 import datetime
+import pandas as pd
 import streamlit as st
+from pymongo import MongoClient
+from dateutil.relativedelta import relativedelta
+
+client = MongoClient('mongodb://localhost:27017/')
+db = client['swlab']
+collection = db['dataset']
+
+def get_dataset():
+    dataset = collection.find()
+    df = pd.DataFrame(dataset)
+    df.loc[(df['site'] == "AI_hub"), 'date'] = df.loc[(df['site'] == "AI_hub"), 'updated_date'][:-2]
+    df.loc[(df['site'] == "서울열린데이터광장"), 'date'] = (df.loc[(df['site'] == "서울열린데이터광장"), 'date'].str.slice(0, 10)).replace('.', '-')
+    df.loc[(df['date'].isnull()), 'date'] = df.loc[(df['date'].isnull()), 'updated_date'] # date가 없는 데이터는 updated_date로 사용
+    df['date'] = pd.to_datetime(df['date'],format='%Y-%m-%d', errors="coerce")
+    return df
 
 class sidebar:
+    def __init__(self):
+        self.entire_dataset = get_dataset()
+        self.selected_list = []
+        self.sidebar = st.sidebar
+        self.search_by_date_dataset = self.entire_dataset
+        self.search_by_site_dataset = self.entire_dataset
+        self.serach_by_title_dataset = self.entire_dataset
+        self.search_by_algorithm_dataset = self.entire_dataset
+        self.search_by_category_dataset = self.entire_dataset
+        self.search_by_date()
+        self.search_by_site()
+        self.search_by_title()
+        self.search_by_algorithm()
+        self.search_by_category()
+        self.search_by_sort()
 
-    def period_search(self):
-        start_date = datetime.date(2000, 1, 1)
-        today = datetime.datetime.now()
-        today_date = datetime.date(today.year, today.month, today.day)
-
-        st.sidebar.date_input(
+        if self.sidebar.button("버튼"):
+            merge_dataset = pd.merge(self.search_by_date_dataset['_id'], self.search_by_site_dataset['_id'])
+            merge_dataset = pd.merge(self.serach_by_title_dataset['_id'], merge_dataset)
+            merge_dataset = pd.merge(self.search_by_category_dataset['_id'], merge_dataset)
+            merge_dataset = pd.merge(self.search_by_algorithm_dataset['_id'], merge_dataset)
+            selected_dataset = pd.merge(merge_dataset, self.entire_dataset)
+            selected_dataset = selected_dataset.drop('_id', axis=1)
+            
+            if self.view:
+                selected_dataset = selected_dataset.sort_values('view')
+                self.selected_list.append('조회수순')
+            if self.latest_time:
+                selected_dataset = selected_dataset.sort_values('date')
+                self.selected_list.append('최신순')
+            if self.download:
+                selected_dataset = selected_dataset.sort_values('download')
+                self.selected_list.append('다운로드순')
+            
+            st.write(''.join(self.selected_list))
+            st.dataframe(selected_dataset)
+            st.write(f"검색된 데이터셋 개수: 총 {len(selected_dataset)}개")
+            
+    def search_by_date(self):
+        date = self.sidebar.radio(
             "**📆 기간으로 데이터셋 검색**",
-            (start_date, today_date),
-            start_date,
-            today_date,
-            format="YYYY.MM.DD",
-        )
-        st.sidebar.text("\n")
+            ["전체", "최근 한 달", "최근 6개월", "최근 1년"])
+        self.sidebar.text("\n")
+        today = datetime.datetime.now()
 
-    def select_site(self):
-        site = st.sidebar.multiselect("**🌍 국내/국외 사이트 선택**", ["공공데이터포털", "서울열린데이터광장", "AI Hub", "Kaggle", "Data.gov"])
-        st.sidebar.text("\n")
+        if date == "전체":
+            self.selected_list.append(date)
+            self.search_by_date_dataset = self.entire_dataset
+        elif date == "최근 한 달":
+            self.selected_list.append(date)
+            current_one_month = today - relativedelta(months = 1)
+            self.search_by_date_dataset = self.entire_dataset.query('date >= @current_one_month and date <= @today')
+        elif date == "최근 6개월":
+            self.selected_list.append(date)
+            current_six_month = today - relativedelta(months = 6)
+            self.search_by_date_dataset = self.entire_dataset.query('date >= @current_six_month and date <= @today')
+        elif date == "최근 1년":
+            self.selected_list.append(date)
+            current_one_year = today - relativedelta(years = 1)
+            self.search_by_date_dataset = self.entire_dataset.query('date >= @current_one_year and date <= @today')
+        
+            # # date_select_frame = df_dataset[df_dataset['date'].isin(pd.date_range(str(select_date[0]), str(select_date[1])))]
+            # date_select_frame['date'] = date_select_frame['date'].dt.strftime('%Y-%m-%d')
 
-    def include_word(self):
-        word = st.sidebar.multiselect("**📗 포함 단어 입력**", ["단어1", "단어2", "단어3", "단어4", "단어5"])
-        st.sidebar.text("\n")
+    def search_by_site(self):
+        selected_sites = self.sidebar.multiselect("**🌍 사이트 검색**", ["공공데이터포털", "서울열린데이터광장", "AI_hub", "Kaggle", "Data.gov"])
+        self.sidebar.text("\n")
+        
+        for selected_site in selected_sites:
+            select_by_site_dataset = self.entire_dataset.query('site==@selected_site')
+            self.search_by_site_dataset = pd.merge(select_by_site_dataset["_id"], self.search_by_site_dataset)
+            self.selected_list.append(selected_site)
+            
+    def search_by_title(self):
+        title =self.sidebar.text_input("**📙 제목으로 검색**")
+        self.sidebar.text("\n")
+        
+        if title:
+            self.selected_list.append(title)
+            self.serach_by_title_dataset = self.entire_dataset.query('title.str.contains(@title)')
 
-    def exclude_word(self):
-        word = st.sidebar.multiselect("**📙 제외 단어 입력**", ["단어1", "단어2", "단어3", "단어4", "단어5"])
+    # TODO multiselect or text_input
+    def search_by_algorithm(self):
+        algorithm = self.sidebar.text_input("**🤖 알고리즘으로 검색**")
+        self.sidebar.text("\n")
+        
+        if algorithm:
+            self.selected_list.append(algorithm)
+            self.search_by_algorithm_dataset = self.entire_dataset.query('algorithm.str.contains(@algorithm)')
 
-st.title("📈 데이터셋 검색")
+    # TODO add category
+    def search_by_category(self):
+        category = self.sidebar.multiselect("**📁 카테고리로 검색**", ["경제", "기타"])
+        self.sidebar.text("\n")
 
+        if category:
+            self.selected_list.append(category)
+            self.search_by_category_dataset = self.entire_dataset.query('category.str.contains(@category)')
+
+    def search_by_sort(self):
+        self.view = self.sidebar.checkbox("**조회순으로 검색**")
+        self.latest_time = self.sidebar.checkbox("**최신순으로 검색**")
+        self.download = self.sidebar.checkbox("**다운로드순으로 검색**")
+
+
+st.title("📈 메타데이터셋 검색 시스템")
 sidebar = sidebar()
-sidebar.period_search()
-sidebar.select_site()
-sidebar.include_word()
-sidebar.exclude_word()
-
 
 
