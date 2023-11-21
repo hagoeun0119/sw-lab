@@ -35,7 +35,7 @@ class sidebar:
         self.search_by_category()
         self.search_by_sort()
 
-        if self.sidebar.button("버튼"):
+        if self.sidebar.button("검색"):
             merge_dataset = pd.merge(self.search_by_date_dataset['_id'], self.search_by_site_dataset['_id'])
             merge_dataset = pd.merge(self.serach_by_title_dataset['_id'], merge_dataset)
             merge_dataset = pd.merge(self.search_by_category_dataset['_id'], merge_dataset)
@@ -61,7 +61,8 @@ class sidebar:
                 selected_dataset = selected_dataset.sort_values(by=[self.search_by_sort_list[0][0], self.search_by_sort_list[1][0], self.search_by_sort_list[2][0]], 
                                                                 ascending=[self.search_by_sort_list[0][1], self.search_by_sort_list[1][1], self.search_by_sort_list[2][1]])
             
-            st.write(''.join(self.selected_list))
+            if self.selected_list:
+                st.info(', '.join(self.selected_list) + '을 포함한 데이터셋 검색')
             st.dataframe(selected_dataset)
             st.write(f"검색된 데이터셋 개수: 총 {len(selected_dataset)}개")
             
@@ -91,7 +92,7 @@ class sidebar:
             # date_select_frame['date'] = date_select_frame['date'].dt.strftime('%Y-%m-%d')
 
     def search_by_site(self):
-        selected_sites = self.sidebar.multiselect("**🌍 사이트 검색**", ["공공데이터포털", "서울열린데이터광장", "AI_hub", "Kaggle", "Data.gov"])
+        selected_sites = self.sidebar.multiselect("**🌍 데이터셋 사이트 검색**", ["공공데이터포털", "서울열린데이터광장", "AI_hub", "Kaggle", "Data.gov"])
         self.sidebar.text("\n")
         
         for selected_site in selected_sites:
