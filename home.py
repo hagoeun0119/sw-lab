@@ -21,6 +21,7 @@ class sidebar:
     def __init__(self):
         self.entire_dataset = get_dataset()
         self.selected_list = []
+        self.search_by_sort_list = []
         self.sidebar = st.sidebar
         self.search_by_date_dataset = self.entire_dataset
         self.search_by_site_dataset = self.entire_dataset
@@ -41,16 +42,24 @@ class sidebar:
             merge_dataset = pd.merge(self.search_by_algorithm_dataset['_id'], merge_dataset)
             selected_dataset = pd.merge(merge_dataset, self.entire_dataset)
             selected_dataset = selected_dataset.drop('_id', axis=1)
-            
+
             if self.view:
-                selected_dataset = selected_dataset.sort_values('view')
+                self.search_by_sort_list.append(('view', True))
                 self.selected_list.append('조회수순')
             if self.latest_time:
-                selected_dataset = selected_dataset.sort_values('date')
+                self.search_by_sort_list.append(('date', False))
                 self.selected_list.append('최신순')
             if self.download:
-                selected_dataset = selected_dataset.sort_values('download')
+                self.search_by_sort_list.append(('download', True))
                 self.selected_list.append('다운로드순')
+        
+            if len(self.search_by_sort_list) == 1:
+                selected_dataset = selected_dataset.sort_values(by=[self.search_by_sort_list[0][0]], ascending=[self.search_by_sort_list[0][1]])
+            elif len(self.search_by_sort_list) == 2:
+                selected_dataset = selected_dataset.sort_values(by=[self.search_by_sort_list[0][0], self.search_by_sort_list[1][0]], ascending=[self.search_by_sort_list[0][1], self.search_by_sort_list[1][1]])
+            elif len(self.search_by_sort_list) == 3:
+                selected_dataset = selected_dataset.sort_values(by=[self.search_by_sort_list[0][0], self.search_by_sort_list[1][0], self.search_by_sort_list[2][0]], 
+                                                                ascending=[self.search_by_sort_list[0][1], self.search_by_sort_list[1][1], self.search_by_sort_list[2][1]])
             
             st.write(''.join(self.selected_list))
             st.dataframe(selected_dataset)
@@ -64,7 +73,6 @@ class sidebar:
         today = datetime.datetime.now()
 
         if date == "전체":
-            self.selected_list.append(date)
             self.search_by_date_dataset = self.entire_dataset
         elif date == "최근 한 달":
             self.selected_list.append(date)
