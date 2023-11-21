@@ -1,8 +1,17 @@
 import datetime
 import pandas as pd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import streamlit as st
+from matplotlib import font_manager, rc
+
 from pymongo import MongoClient
 from dateutil.relativedelta import relativedelta
+
+st.set_page_config(layout="wide")
+font_path = "C:/Windows/Fonts/NGULIM.TTF"
+font = font_manager.FontProperties(fname=font_path).get_name()
+rc('font', family=font)
 
 client = MongoClient('mongodb://localhost:27017/')
 db = client['swlab']
@@ -94,6 +103,7 @@ class sidebar:
     def search_by_site(self):
         selected_sites = self.sidebar.multiselect("**🌍 데이터셋 사이트 검색**", ["공공데이터포털", "서울열린데이터광장", "AI_hub", "Kaggle", "Data.gov"])
         self.sidebar.text("\n")
+        self.selected_sites = selected_sites  # 클래스 변수로 선택된 사이트 저장
         
         for selected_site in selected_sites:
             select_by_site_dataset = self.entire_dataset.query('site==@selected_site')
@@ -103,6 +113,7 @@ class sidebar:
     def search_by_title(self):
         title =self.sidebar.text_input("**📙 제목으로 검색**")
         self.sidebar.text("\n")
+        self.title = title  # 클래스 변수로 선택된 사이트 저장
         
         if title:
             self.selected_list.append(title)
@@ -112,6 +123,7 @@ class sidebar:
     def search_by_algorithm(self):
         algorithm = self.sidebar.text_input("**🤖 알고리즘으로 검색**")
         self.sidebar.text("\n")
+        self.algorithm = algorithm
         
         if algorithm:
             self.selected_list.append(algorithm)
@@ -121,6 +133,7 @@ class sidebar:
     def search_by_category(self):
         category = self.sidebar.multiselect("**📁 카테고리로 검색**", ["경제", "기타"])
         self.sidebar.text("\n")
+        self.category = category  # 클래스 변수로 선택된 사이트 저장
 
         if category:
             self.selected_list.append(category)
@@ -131,8 +144,74 @@ class sidebar:
         self.latest_time = self.sidebar.checkbox("**최신순으로 검색**")
         self.download = self.sidebar.checkbox("**다운로드순으로 검색**")
 
+    # 데이터 시각화
+    def visualize_site_counts(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
+        filtered_dataset = dataset.copy()
 
+        if self.selected_sites:
+            filtered_dataset = filtered_dataset[filtered_dataset['site'].isin(self.selected_sites)]
+        if self.title:
+            filtered_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.title)]
+        if self.algorithm:
+            filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm)]
+        if self.category:
+            filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category)]
+
+        site_counts = filtered_dataset['site'].value_counts()
+        fig_site_counts, ax_site_counts = plt.subplots(figsize=(10, 6))
+        site_counts.plot(kind='bar', color='skyblue', ax=ax_site_counts)
+        ax_site_counts.set_ylabel('데이터셋 개수', fontsize=12)
+        ax_site_counts.tick_params(axis='x', labelrotation=45)
+
+        st.pyplot(fig_site_counts)
+        st.table(site_counts.reset_index().rename(columns={"index": "사이트", "site": "데이터셋 개수"}))
+
+        return fig_site_counts
+
+    def visualize_top_categories(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
+        filtered_dataset = dataset[(dataset['category'] != 'NA') & (dataset['category'] != 'other')]
+        
+        if self.selected_sites:
+            filtered_dataset = filtered_dataset[filtered_dataset['site'].isin(self.selected_sites)]
+        if self.title:
+            filtered_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.title)]
+        if self.algorithm:
+            filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm)]
+        if self.category:
+            filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category)]
+
+        top_categories = filtered_dataset['category'].value_counts().head(20)
+
+        fig_top_category_counts, ax_top_category_counts = plt.subplots(figsize=(10, 6))
+        top_categories.plot(kind='bar', color='lightgreen', ax=ax_top_category_counts)
+        ax_top_category_counts.set_ylabel('데이터셋 개수', fontsize=12)
+        ax_top_category_counts.tick_params(axis='x', labelrotation=45, labelsize=8)
+
+        st.pyplot(fig_top_category_counts)
+        st.table(top_categories.reset_index().rename(columns={"index": "카테고리", "category": "데이터셋 개수"}))
+
+        return fig_top_category_counts
+
+# main
 st.title("📈 메타데이터셋 검색 시스템")
+st.text("")
+st.text("")
+st.markdown("###### 크롤링한 날짜 : 2023.10.02")
+st.markdown('---')
 sidebar = sidebar()
+dataset = sidebar.entire_dataset
 
+col1, col2 = st.columns(2)
 
+with col1:
+    st.subheader("사이트별 데이터셋 개수")
+    sidebar.visualize_site_counts(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
+
+with col2:
+    st.subheader("상위 카테고리별 데이터셋 개수")
+    sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
+
+st.markdown('---')
+st.subheader('전체 데이터셋')
+st.write(dataset.drop('_id', axis=1))
+st.write(f"총 데이터셋 개수: 총 {len(dataset)}개")
