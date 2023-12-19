@@ -20,10 +20,18 @@ collection = db['dataset']
 def get_dataset():
     dataset = collection.find()
     df = pd.DataFrame(dataset)
+    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     df.loc[(df['site'] == "AI_hub"), 'date'] = df.loc[(df['site'] == "AI_hub"), 'updated_date'][:-2]
     df.loc[(df['site'] == "서울열린데이터광장"), 'date'] = (df.loc[(df['site'] == "서울열린데이터광장"), 'date'].str.slice(0, 10)).replace('.', '-')
     df.loc[(df['date'].isnull()), 'date'] = df.loc[(df['date'].isnull()), 'updated_date'] # date가 없는 데이터는 updated_date로 사용
     df['date'] = pd.to_datetime(df['date'],format='%Y-%m-%d', errors="coerce")
+    df['updated_date'] = pd.to_datetime(df['updated_date'],format='%Y-%m-%d', errors="coerce")
+    df['created_date'] = pd.to_datetime(df['created_date'],format='%Y-%m-%d', errors="coerce")
+    df['updated_date'] = df['updated_date'].dt.strftime('%Y-%m-%d')
+    df['created_date'] = df['created_date'].dt.strftime('%Y-%m-%d')
+    df['download'] = pd.to_numeric(df['download'], errors='coerce')
+    df['view'] = pd.to_numeric(df['view'], errors='coerce')
+
     return df
 
 class sidebar:
@@ -53,17 +61,17 @@ class sidebar:
             selected_dataset = selected_dataset.drop('_id', axis=1)
 
             if self.view:
-                self.search_by_sort_list.append(('view', True))
+                self.search_by_sort_list.append(('view', False))
                 self.selected_list.append('조회수순')
             if self.latest_time:
-                self.search_by_sort_list.append(('date', False))
+                self.search_by_sort_list.append(('date', True))
                 self.selected_list.append('최신순')
             if self.download:
                 self.search_by_sort_list.append(('download', True))
                 self.selected_list.append('다운로드순')
         
             if len(self.search_by_sort_list) == 1:
-                selected_dataset = selected_dataset.sort_values(by=[self.search_by_sort_list[0][0]], ascending=[self.search_by_sort_list[0][1]])
+                selected_dataset = selected_dataset.sort_values(by=[self.search_by_sort_list[0][0]], ascending=[self.search_by_sort_list[0][1]]) 
             elif len(self.search_by_sort_list) == 2:
                 selected_dataset = selected_dataset.sort_values(by=[self.search_by_sort_list[0][0], self.search_by_sort_list[1][0]], ascending=[self.search_by_sort_list[0][1], self.search_by_sort_list[1][1]])
             elif len(self.search_by_sort_list) == 3:
@@ -196,7 +204,7 @@ class sidebar:
 st.title("📈 메타데이터셋 검색 시스템")
 st.text("")
 st.text("")
-st.markdown("###### 크롤링한 날짜 : 2023.10.02")
+st.markdown("###### 크롤링한 날짜 : 2023.11.25")
 st.markdown('---')
 sidebar = sidebar()
 dataset = sidebar.entire_dataset
