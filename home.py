@@ -85,22 +85,22 @@ class sidebar:
             
     def search_by_date(self):
         date = self.sidebar.radio(
-            "**📆 기간으로 데이터셋 검색**",
-            ["전체", "최근 한 달", "최근 6개월", "최근 1년"])
+            "**📆 Search by Period**",
+            ["Total", "Last month", "Last 6 months", "Last year"])
         self.sidebar.text("\n")
         today = datetime.datetime.now()
 
-        if date == "전체":
+        if date == "Total":
             self.search_by_date_dataset = self.entire_dataset
-        elif date == "최근 한 달":
+        elif date == "Last month":
             self.selected_list.append(date)
             current_one_month = today - relativedelta(months = 1)
             self.search_by_date_dataset = self.entire_dataset.query('date >= @current_one_month and date <= @today')
-        elif date == "최근 6개월":
+        elif date == "Last 6 months":
             self.selected_list.append(date)
             current_six_month = today - relativedelta(months = 6)
             self.search_by_date_dataset = self.entire_dataset.query('date >= @current_six_month and date <= @today')
-        elif date == "최근 1년":
+        elif date == "Last year":
             self.selected_list.append(date)
             current_one_year = today - relativedelta(years = 1)
             self.search_by_date_dataset = self.entire_dataset.query('date >= @current_one_year and date <= @today')
@@ -109,7 +109,7 @@ class sidebar:
             # date_select_frame['date'] = date_select_frame['date'].dt.strftime('%Y-%m-%d')
 
     def search_by_site(self):
-        selected_sites = self.sidebar.multiselect("**🌍 데이터셋 사이트 검색**", ["공공데이터포털", "서울열린데이터광장", "AI_hub", "Kaggle", "Data.gov"])
+        selected_sites = self.sidebar.multiselect("**🌍 Search Dataset Site**", ["Public Data Portal", "Seoul Open Data Plaza", "AI_hub", "Kaggle", "Data.gov"])
         self.sidebar.text("\n")
         self.selected_sites = selected_sites  # 클래스 변수로 선택된 사이트 저장
         
@@ -119,7 +119,7 @@ class sidebar:
             self.selected_list.append(selected_site)
             
     def search_by_title(self):
-        title =self.sidebar.text_input("**📙 제목으로 검색**")
+        title =self.sidebar.text_input("**📙 Search by title**")
         self.sidebar.text("\n")
         self.title = title  # 클래스 변수로 선택된 사이트 저장
         
@@ -129,7 +129,7 @@ class sidebar:
 
     # TODO multiselect or text_input
     def search_by_algorithm(self):
-        algorithm = self.sidebar.text_input("**🤖 알고리즘으로 검색**")
+        algorithm = self.sidebar.text_input("**🤖 Search by algorithm**")
         self.sidebar.text("\n")
         self.algorithm = algorithm
         
@@ -139,7 +139,7 @@ class sidebar:
 
     # TODO add category
     def search_by_category(self):
-        category = self.sidebar.multiselect("**📁 카테고리로 검색**", ["경제", "기타"])
+        category = self.sidebar.multiselect("**📁 Find with Category**", ["Economy", "Other"])
         self.sidebar.text("\n")
         self.category = category  # 클래스 변수로 선택된 사이트 저장
 
@@ -148,9 +148,9 @@ class sidebar:
             self.search_by_category_dataset = self.entire_dataset.query('category.str.contains(@category)')
 
     def search_by_sort(self):
-        self.view = self.sidebar.checkbox("**조회순으로 검색**")
-        self.latest_time = self.sidebar.checkbox("**최신순으로 검색**")
-        self.download = self.sidebar.checkbox("**다운로드순으로 검색**")
+        self.view = self.sidebar.checkbox("**By Views**")
+        self.latest_time = self.sidebar.checkbox("**Last updated**")
+        self.download = self.sidebar.checkbox("**By Downloads**")
 
     # 데이터 시각화
     def visualize_site_counts(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
@@ -165,16 +165,26 @@ class sidebar:
         if self.category:
             filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category)]
 
+        site_mapping = {
+            '공공데이터포털': 'Public Data Portal',
+            '서울열린데이터광장': 'Seoul Open Data Plaza',
+            'AI hub' : 'AI-hub',
+            'Kaggle' : 'Kaggle',
+            'Data.gov' : 'Data.gov'
+        }
+        filtered_dataset['site'] = filtered_dataset['site'].map(site_mapping) # 사이트 영어로 변환
+
         site_counts = filtered_dataset['site'].value_counts()
         fig_site_counts, ax_site_counts = plt.subplots(figsize=(10, 6))
         site_counts.plot(kind='bar', color='skyblue', ax=ax_site_counts)
-        ax_site_counts.set_ylabel('데이터셋 개수', fontsize=12)
+        ax_site_counts.set_ylabel('Number of datasets', fontsize=15)
         ax_site_counts.tick_params(axis='x', labelrotation=45)
 
         st.pyplot(fig_site_counts)
         st.table(site_counts.reset_index().rename(columns={"index": "사이트", "site": "데이터셋 개수"}))
 
         return fig_site_counts
+
 
     def visualize_top_categories(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
         filtered_dataset = dataset[(dataset['category'] != 'NA') & (dataset['category'] != 'other')]
@@ -188,8 +198,23 @@ class sidebar:
         if self.category:
             filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category)]
 
-        top_categories = filtered_dataset['category'].value_counts().head(20)
+        category_mapping = {
+            '교육': 'Education',
+            '재정금융': 'Finance',
+            '식품건강': 'Food Health',
+            '문화관광': 'culture/travel',
+            '보건의료': 'healthcare',
+            '재난안전': 'disaster/safety',
+            '교통물류': 'transportation',
+            '환경기상': 'environment',
+            '과학기술': 'science and technology',
+            '농축축산': 'agriculture',
+            '법률': 'law'
+        }
 
+        filtered_dataset['category'] = filtered_dataset['category'].map(category_mapping)
+
+        top_categories = filtered_dataset['category'].value_counts().head(20)
         fig_top_category_counts, ax_top_category_counts = plt.subplots(figsize=(10, 6))
         top_categories.plot(kind='bar', color='lightgreen', ax=ax_top_category_counts)
         ax_top_category_counts.set_ylabel('데이터셋 개수', fontsize=12)
@@ -201,25 +226,30 @@ class sidebar:
         return fig_top_category_counts
 
 # main
-st.title("📈 메타데이터셋 검색 시스템")
+st.title("📈 Meta-Dataset Searching System")
 st.text("")
 st.text("")
-st.markdown("###### 크롤링한 날짜 : 2023.11.25")
+st.markdown("###### Crawling Date : 2023.11.25")
 st.markdown('---')
 sidebar = sidebar()
 dataset = sidebar.entire_dataset
 
-col1, col2 = st.columns(2)
+# col1, col2 = st.columns(2)
 
-with col1:
-    st.subheader("사이트별 데이터셋 개수")
-    sidebar.visualize_site_counts(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
+# with col1:
+#     st.subheader("Number of datasets per site")
+#     sidebar.visualize_site_counts(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
 
-with col2:
-    st.subheader("상위 카테고리별 데이터셋 개수")
-    sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
+# with col2:
+#     st.subheader("Number of datasets by category")
+#     sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
+
+st.subheader("Number of datasets per site")
+sidebar.visualize_site_counts(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
+st.subheader("Number of datasets by category")
+sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
 
 st.markdown('---')
-st.subheader('전체 데이터셋')
+st.subheader('Total Datasets')
 st.write(dataset.drop('_id', axis=1))
-st.write(f"총 데이터셋 개수: 총 {len(dataset)}개")
+st.write(f"Total number of datasets: {len(dataset)}")
