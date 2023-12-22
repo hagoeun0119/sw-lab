@@ -1,12 +1,50 @@
 import datetime
 import pandas as pd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import streamlit as st
+from matplotlib import font_manager, rc
+
 from pymongo import MongoClient
 from dateutil.relativedelta import relativedelta
+
+import requests
+import json
+
+st.set_page_config(layout="wide")
+font_path = "C:/Windows/Fonts/NGULIM.TTF"
+font = font_manager.FontProperties(fname=font_path).get_name()
+rc('font', family=font)
 
 client = MongoClient('mongodb://localhost:27017/')
 db = client['swlab']
 collection = db['dataset']
+
+
+# PAPAGO
+def translate_with_papago(text, source_lang, target_lang):
+    #CLIENT_ID, CLIENT_SECRET = 'tiqA5T0lzVEsmHU21sEb', 'CHZg9FfD50'
+    #CLIENT_ID, CLIENT_SECRET = '7xzvsdFxezzwgvI2rozB', 'BWmAlpUANb'
+    CLIENT_ID, CLIENT_SECRET = 'UjtULMAjNAE7yEcVWPDO', 'moaDbbcwUL'
+    url = 'https://openapi.naver.com/v1/papago/n2mt'
+    headers = {
+        'Content-Type': 'application/json',
+        'X-Naver-Client-Id': CLIENT_ID,
+        'X-Naver-Client-Secret': CLIENT_SECRET
+    }
+
+    data = {'source': source_lang, 'target':target_lang, 'text': text}
+
+    # post 방식으로 서버 쪽으로 요청
+    response = requests.post(url, json.dumps(data), headers=headers)
+    #result = response.json()['message']['result']['translatedText']
+    result = response.json()
+
+    if "message" in result:
+        translated_text = result["message"]["result"]["translatedText"]
+        return translated_text
+    else:
+        return None
 
 def get_dataset():
     dataset = collection.find()
@@ -15,6 +53,7 @@ def get_dataset():
     df.loc[(df['site'] == "서울열린데이터광장"), 'date'] = (df.loc[(df['site'] == "서울열린데이터광장"), 'date'].str.slice(0, 10)).replace('.', '-')
     df.loc[(df['date'].isnull()), 'date'] = df.loc[(df['date'].isnull()), 'updated_date'] # date가 없는 데이터는 updated_date로 사용
     df['date'] = pd.to_datetime(df['date'],format='%Y-%m-%d', errors="coerce")
+    df = df.astype(str)
     return df
 
 class sidebar:
@@ -50,7 +89,7 @@ class sidebar:
                 self.search_by_sort_list.append(('date', False))
                 self.selected_list.append('최신순')
             if self.download:
-                self.search_by_sort_list.append(('download', True))
+                self.search_by_sort_list.append(('download', False))
                 self.selected_list.append('다운로드순')
         
             if len(self.search_by_sort_list) == 1:
@@ -119,12 +158,20 @@ class sidebar:
 
     # TODO add category
     def search_by_category(self):
-        category = self.sidebar.multiselect("**📁 카테고리로 검색**", ["경제", "기타"])
+        selected_category = self.sidebar.multiselect("**📁 카테고리로 검색**", ["교육", "재정금융", "사회복지", "식품건강", "보건의료", "재난안전", "교통물류", "환경기상", "과학기술", "농축축산", "법률"])
         self.sidebar.text("\n")
 
-        if category:
-            self.selected_list.append(category)
-            self.search_by_category_dataset = self.entire_dataset.query('category.str.contains(@category)')
+        category_papago = []
+        for selected in selected_category:
+            category_papago.append(translate_with_papago(selected, "ko", "en"))
+        self.category = category_papago  # 클래스 변수로 선택된 사이트 저장
+
+        if selected_category:
+            for index in range(len(selected_category)):
+                category_query = selected_category[index] + '|' + category_papago[index]
+                select_by_category_dataset = self.entire_dataset.query('category.str.contains(@category_query, case=False)')
+                self.search_by_category_dataset = pd.merge(select_by_category_dataset["_id"], self.search_by_category_dataset)
+                self.selected_list.append(selected_category[index])
 
     def search_by_sort(self):
         self.view = self.sidebar.checkbox("**조회순으로 검색**")
