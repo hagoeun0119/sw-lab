@@ -35,7 +35,6 @@ def translate_with_papago(text, source_lang, target_lang):
 
     data = {'source': source_lang, 'target':target_lang, 'text': text}
 
-    # post 방식으로 서버 쪽으로 요청
     response = requests.post(url, json.dumps(data), headers=headers)
     #result = response.json()['message']['result']['translatedText']
     result = response.json()
@@ -132,9 +131,6 @@ class sidebar:
             self.selected_list.append(date)
             current_one_year = today - relativedelta(years = 1)
             self.search_by_date_dataset = self.entire_dataset.query('date >= @current_one_year and date <= @today')
-        
-            # # date_select_frame = df_dataset[df_dataset['date'].isin(pd.date_range(str(select_date[0]), str(select_date[1])))]
-            # date_select_frame['date'] = date_select_frame['date'].dt.strftime('%Y-%m-%d')
 
     def search_by_site(self):
         selected_sites = self.sidebar.multiselect("**🌍 Search Dataset Site**", ["Public Data Portal", "Seoul Open Data Plaza", "AI_hub", "Kaggle", "Data.gov"])
@@ -171,14 +167,13 @@ class sidebar:
         self.sidebar.text("\n")
         self.category = selected_category  # 클래스 변수로 선택된 사이트 저장
 
-        category_papago = []
+        self.category_papago = []
         for selected in selected_category:
-            category_papago.append(translate_with_papago(selected, "ko", "en"))
-        self.category = category_papago  # 클래스 변수로 선택된 사이트 저장
+            self.category_papago.append(translate_with_papago(selected, "en", "ko"))
 
         if selected_category:
             for index in range(len(selected_category)):
-                category_query = selected_category[index] + '|' + category_papago[index]
+                category_query = selected_category[index] + '|' + self.category_papago[index]
                 select_by_category_dataset = self.entire_dataset.query('category.str.contains(@category_query, case=False)')
                 self.search_by_category_dataset = pd.merge(select_by_category_dataset["_id"], self.search_by_category_dataset)
                 self.selected_list.append(selected_category[index])
@@ -199,7 +194,9 @@ class sidebar:
         if self.algorithm:
             filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm)]
         if self.category:
-            filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category)]
+            en_filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category)]
+            ko_filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category_papago)]
+            filtered_dataset = pd.concat([en_filtered_dataset, ko_filtered_dataset])
 
         site_mapping = {
             '공공데이터포털': 'Public Data Portal',
@@ -224,15 +221,6 @@ class sidebar:
 
     def visualize_top_categories(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
         filtered_dataset = dataset[(dataset['category'] != 'NA') & (dataset['category'] != 'other')]
-        
-        if self.selected_sites:
-            filtered_dataset = filtered_dataset[filtered_dataset['site'].isin(self.selected_sites)]
-        if self.title:
-            filtered_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.title)]
-        if self.algorithm:
-            filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm)]
-        if self.category:
-            filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category)]
 
         category_mapping = {
             '교육': 'Education',
@@ -249,7 +237,17 @@ class sidebar:
             '법률': 'Law'
         }
 
-        filtered_dataset['category'] = filtered_dataset['category'].map(category_mapping)
+        if self.selected_sites:
+            filtered_dataset = filtered_dataset[filtered_dataset['site'].isin(self.selected_sites)]
+        if self.title:
+            filtered_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.title)]
+        if self.algorithm:
+            filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm)]
+        if self.category:
+            en_filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category)]
+            ko_filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category_papago)]
+            ko_filtered_dataset['category'] = ko_filtered_dataset['category'].map(category_mapping)
+            filtered_dataset = pd.concat([en_filtered_dataset, ko_filtered_dataset])
 
         top_categories = filtered_dataset['category'].value_counts().head(20)
         fig_top_category_counts, ax_top_category_counts = plt.subplots(figsize=(10, 6))
