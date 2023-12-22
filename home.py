@@ -114,6 +114,7 @@ class sidebar:
             
             if self.selected_list:
                 st.info(', '.join(self.selected_list) + '을 포함한 데이터셋 검색')
+            selected_dataset = selected_dataset.astype(str)
             st.dataframe(selected_dataset)
             st.write(f"검색된 데이터셋 개수: 총 {len(selected_dataset)}개")
             
@@ -153,15 +154,17 @@ class sidebar:
             self.selected_list.append(selected_site)
             
     def search_by_title(self):
-        title =self.sidebar.text_input("**📙 Search by title**")
+        title = self.sidebar.text_input("**📙 Search by title**")
+        self.ko_title = translate_with_papago(title, "en", "ko")
+        self.en_title = translate_with_papago(title, "ko", "en")
         self.sidebar.text("\n")
         self.title = title  # 클래스 변수로 선택된 사이트 저장
         
         if title:
+            title_query = self.ko_title + '|' + self.en_title
             self.selected_list.append(title)
-            self.serach_by_title_dataset = self.entire_dataset.query('title.str.contains(@title)')
+            self.serach_by_title_dataset = self.entire_dataset.query('title.str.contains(@title_query, case=False)')
 
-    # TODO multiselect or text_input
     def search_by_algorithm(self):
         algorithm = self.sidebar.text_input("**🤖 Search by algorithm**")
         self.sidebar.text("\n")
@@ -169,9 +172,8 @@ class sidebar:
         
         if algorithm:
             self.selected_list.append(algorithm)
-            self.search_by_algorithm_dataset = self.entire_dataset.query('algorithm.str.contains(@algorithm)')
+            self.search_by_algorithm_dataset = self.entire_dataset.query('algorithm.str.contains(@algorithm, case=False)')
 
-    # TODO add category
     def search_by_category(self):
         selected_category = self.sidebar.multiselect("**📁 Find with Category**", ["Education", "Finance", "Healthcare", "Food Health", "Social Welfare", "Disaster Safety", "Culture Travel", "Transportation", "Environment", "Science Technology", "Agriculture", "Law"])
         self.sidebar.text("\n")
@@ -200,16 +202,18 @@ class sidebar:
         if self.selected_sites:
             reversed_site_mapping = dict(map(reversed, self.site_mapping.items()))
             for index in range(len(self.selected_sites)):
-                self.selected_sites[index] = reversed_site_mapping[self.selected_sites[index] ]
+                self.selected_sites[index] = reversed_site_mapping[self.selected_sites[index]]
             filtered_dataset = filtered_dataset[filtered_dataset['site'].isin(self.selected_sites)]
         if self.title:
-            filtered_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.title)]
+            ko_title_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.ko_title)]
+            en_title_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.en_title, case=False)]
+            filtered_dataset = pd.concat([en_title_dataset, ko_title_dataset])
         if self.algorithm:
-            filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm)]
+            filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm, case=False)]
         if self.category:
-            en_filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category)]
-            ko_filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category_papago)]
-            filtered_dataset = pd.concat([en_filtered_dataset, ko_filtered_dataset])
+            en_category_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category, case=False)]
+            ko_category_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category_papago)]
+            filtered_dataset = pd.concat([en_category_dataset, ko_category_dataset])
 
         filtered_dataset['site'] = filtered_dataset['site'].map(self.site_mapping) # 사이트 영어로 변환
 
@@ -243,16 +247,21 @@ class sidebar:
         }
 
         if self.selected_sites:
+            reversed_site_mapping = dict(map(reversed, self.site_mapping.items()))
+            for index in range(len(self.selected_sites)):
+                self.selected_sites[index] = reversed_site_mapping[self.selected_sites[index]]
             filtered_dataset = filtered_dataset[filtered_dataset['site'].isin(self.selected_sites)]
         if self.title:
-            filtered_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.title)]
+            ko_title_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.ko_title)]
+            en_title_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.en_title, case=False)]
+            filtered_dataset = pd.concat([en_title_dataset, ko_title_dataset])
         if self.algorithm:
-            filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm)]
+            filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm, case=False)]
         if self.category:
-            en_filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category)]
-            ko_filtered_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category_papago)]
-            ko_filtered_dataset['category'] = ko_filtered_dataset['category'].map(category_mapping)
-            filtered_dataset = pd.concat([en_filtered_dataset, ko_filtered_dataset])
+            en_category_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category, case=False)]
+            ko_category_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category_papago)]
+            ko_category_dataset['category'] = ko_category_dataset['category'].map(category_mapping)
+            filtered_dataset = pd.concat([en_category_dataset, ko_category_dataset])
 
         if  len(filtered_dataset['site']) != 0:
             top_categories = filtered_dataset['category'].value_counts().head(20)
@@ -297,4 +306,5 @@ if category_graph:
 st.markdown('---')
 st.subheader('Total Datasets')
 st.write(dataset.drop('_id', axis=1))
+dataset = dataset.astype(str)
 st.write(f"Total number of datasets: {len(dataset)}")
