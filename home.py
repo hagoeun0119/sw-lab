@@ -72,6 +72,7 @@ class sidebar:
         self.serach_by_title_dataset = self.entire_dataset
         self.search_by_algorithm_dataset = self.entire_dataset
         self.search_by_category_dataset = self.entire_dataset
+
         self.site_mapping = {
             '공공데이터포털': 'Public Data Portal',
             '서울열린데이터광장': 'Seoul Open Data Plaza',
@@ -136,8 +137,10 @@ class sidebar:
             selected_dataset.reset_index(drop=True, inplace=True)
 
             st.dataframe(selected_dataset)
-            st.write(f"검색된 데이터셋 개수: 총 {len(selected_dataset)}개")
+            st.write(f"Total number of datasets: {len(selected_dataset)}")
             self.result_dataset = selected_dataset
+        else:
+            self.result_dataset = self.entire_dataset
             
     def search_by_date(self):
         date = self.sidebar.radio(
@@ -172,7 +175,6 @@ class sidebar:
             self.selected_list.append(self.site_mapping[self.selected_sites[index]])
         self.search_by_site_dataset = self.entire_dataset[self.entire_dataset['site'].isin(self.selected_sites)]
         
-            
     def search_by_title(self):
         title = self.sidebar.text_input("**📙 Search by title**")
         self.ko_title = translate_with_papago(title, "en", "ko")
@@ -209,6 +211,9 @@ class sidebar:
             ko_category_dataset = self.entire_dataset[self.entire_dataset['category'].isin(self.category_ko)]
             self.search_by_category_dataset = pd.concat([en_category_dataset, ko_category_dataset])
             self.selected_list.append(selected_category[index])
+        else:
+            self.category = list(self.category_mapping.values())
+            self.category_ko = list(self.category_mapping.keys())
 
     def search_by_sort(self):
         self.view = self.sidebar.checkbox("**By Views**")
