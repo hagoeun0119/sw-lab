@@ -79,6 +79,22 @@ class sidebar:
             'Kaggle' : 'Kaggle',
             'Data.gov' : 'Data.gov'
         }
+        
+        self.category_mapping = {
+            '교육': 'Education',
+            '재정금융': 'Finance',
+            '식품건강': 'Food Health',
+            '문화관광': 'Culture Travel',
+            '보건의료': 'Healthcare',
+            '재난안전': 'Disaster Safety',
+            '교통물류': 'Transportation',
+            '환경기상': 'Environment',
+            '과학기술': 'Science Technology',
+            '농축축산': 'Agriculture',
+            '사회복지': 'Social Welfare', 
+            '법률': 'Law'
+        }
+
         self.search_by_date()
         self.search_by_site()
         self.search_by_title()
@@ -92,18 +108,17 @@ class sidebar:
             merge_dataset = pd.merge(self.search_by_category_dataset['_id'], merge_dataset)
             merge_dataset = pd.merge(self.search_by_algorithm_dataset['_id'], merge_dataset)
             selected_dataset = pd.merge(merge_dataset, self.entire_dataset)
-            selected_dataset = selected_dataset.drop('_id', axis=1)
 
             if self.view:
                 self.search_by_sort_list.append(('view', False))
-                self.selected_list.append('조회수순')
+                self.selected_list.append('By Views')
             if self.latest_time:
                 self.search_by_sort_list.append(('date', True))
-                self.selected_list.append('최신순')
+                self.selected_list.append('Last updated')
             if self.download:
                 self.search_by_sort_list.append(('download', False))
-                self.selected_list.append('다운로드순')
-        
+                self.selected_list.append('By Downloads')
+
             if len(self.search_by_sort_list) == 1:
                 selected_dataset = selected_dataset.sort_values(by=[self.search_by_sort_list[0][0]], ascending=[self.search_by_sort_list[0][1]]) 
             elif len(self.search_by_sort_list) == 2:
@@ -111,12 +126,18 @@ class sidebar:
             elif len(self.search_by_sort_list) == 3:
                 selected_dataset = selected_dataset.sort_values(by=[self.search_by_sort_list[0][0], self.search_by_sort_list[1][0], self.search_by_sort_list[2][0]], 
                                                                 ascending=[self.search_by_sort_list[0][1], self.search_by_sort_list[1][1], self.search_by_sort_list[2][1]])
-            
             if self.selected_list:
-                st.info(', '.join(self.selected_list) + '을 포함한 데이터셋 검색')
+                st.info('Search Keyword: ' + ', '.join(self.selected_list))
+
+            selected_dataset = selected_dataset.drop('_id', axis=1)
             selected_dataset = selected_dataset.astype(str)
+            selected_dataset['download'] = pd.to_numeric(selected_dataset['download'], errors='coerce')
+            selected_dataset['view'] = pd.to_numeric(selected_dataset['view'], errors='coerce')
+            selected_dataset.reset_index(drop=True, inplace=True)
+
             st.dataframe(selected_dataset)
             st.write(f"검색된 데이터셋 개수: 총 {len(selected_dataset)}개")
+            self.result_dataset = selected_dataset
             
     def search_by_date(self):
         date = self.sidebar.radio(
@@ -146,12 +167,11 @@ class sidebar:
         self.selected_sites = selected_sites  # 클래스 변수로 선택된 사이트 저장
         
         reversed_site_mapping = dict(map(reversed, self.site_mapping.items()))
-
-        for selected_site in selected_sites:
-            selected_site = reversed_site_mapping[selected_site]
-            select_by_site_dataset = self.entire_dataset.query('site==@selected_site')
-            self.search_by_site_dataset = pd.merge(select_by_site_dataset["_id"], self.search_by_site_dataset)
-            self.selected_list.append(selected_site)
+        for index in range(len(self.selected_sites)):
+            self.selected_sites[index] = reversed_site_mapping[self.selected_sites[index]]
+            self.selected_list.append(self.site_mapping[self.selected_sites[index]])
+        self.search_by_site_dataset = self.entire_dataset[self.entire_dataset['site'].isin(self.selected_sites)]
+        
             
     def search_by_title(self):
         title = self.sidebar.text_input("**📙 Search by title**")
@@ -178,17 +198,17 @@ class sidebar:
         selected_category = self.sidebar.multiselect("**📁 Find with Category**", ["Education", "Finance", "Healthcare", "Food Health", "Social Welfare", "Disaster Safety", "Culture Travel", "Transportation", "Environment", "Science Technology", "Agriculture", "Law"])
         self.sidebar.text("\n")
         self.category = selected_category  # 클래스 변수로 선택된 사이트 저장
+        self.category_ko = [] 
 
-        self.category_papago = []
-        for selected in selected_category:
-            self.category_papago.append(translate_with_papago(selected, "en", "ko"))
+        reversed_category_mapping = dict(map(reversed, self.category_mapping.items()))
+        for index in range(len(selected_category)):
+            self.category_ko.append(reversed_category_mapping[self.category[index]])
 
-        if selected_category:
-            for index in range(len(selected_category)):
-                category_query = selected_category[index] + '|' + self.category_papago[index]
-                select_by_category_dataset = self.entire_dataset.query('category.str.contains(@category_query, case=False)')
-                self.search_by_category_dataset = pd.merge(select_by_category_dataset["_id"], self.search_by_category_dataset)
-                self.selected_list.append(selected_category[index])
+        if selected_category:               
+            en_category_dataset = self.entire_dataset[self.entire_dataset['category'].isin(self.category)]
+            ko_category_dataset = self.entire_dataset[self.entire_dataset['category'].isin(self.category_ko)]
+            self.search_by_category_dataset = pd.concat([en_category_dataset, ko_category_dataset])
+            self.selected_list.append(selected_category[index])
 
     def search_by_sort(self):
         self.view = self.sidebar.checkbox("**By Views**")
@@ -197,28 +217,11 @@ class sidebar:
 
     # 데이터 시각화
     def visualize_site_counts(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
-        filtered_dataset = dataset.copy()
 
-        if self.selected_sites:
-            reversed_site_mapping = dict(map(reversed, self.site_mapping.items()))
-            for index in range(len(self.selected_sites)):
-                self.selected_sites[index] = reversed_site_mapping[self.selected_sites[index]]
-            filtered_dataset = filtered_dataset[filtered_dataset['site'].isin(self.selected_sites)]
-        if self.title:
-            ko_title_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.ko_title)]
-            en_title_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.en_title, case=False)]
-            filtered_dataset = pd.concat([en_title_dataset, ko_title_dataset])
-        if self.algorithm:
-            filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm, case=False)]
-        if self.category:
-            en_category_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category, case=False)]
-            ko_category_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category_papago)]
-            filtered_dataset = pd.concat([en_category_dataset, ko_category_dataset])
+        self.result_dataset['site'] = self.result_dataset['site'].map(self.site_mapping) # 사이트 영어로 변환
 
-        filtered_dataset['site'] = filtered_dataset['site'].map(self.site_mapping) # 사이트 영어로 변환
-
-        if  len(filtered_dataset['site']) != 0:
-            site_counts = filtered_dataset['site'].value_counts()
+        if  len(self.result_dataset['site']) != 0:
+            site_counts = self.result_dataset['site'].value_counts()
             fig_site_counts, ax_site_counts = plt.subplots(figsize=(10, 6))
             site_counts.plot(kind='bar', color='skyblue', ax=ax_site_counts)
             ax_site_counts.set_ylabel('Number of datasets', fontsize=15)
@@ -229,45 +232,17 @@ class sidebar:
             return fig_site_counts
 
     def visualize_top_categories(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
-        filtered_dataset = dataset[(dataset['category'] != 'NA') & (dataset['category'] != 'other')]
 
-        category_mapping = {
-            '교육': 'Education',
-            '재정금융': 'Finance',
-            '식품건강': 'Food Health',
-            '문화관광': 'Culture Travel',
-            '보건의료': 'Healthcare',
-            '재난안전': 'Disaster Safety',
-            '교통물류': 'Transportation',
-            '환경기상': 'Environment',
-            '과학기술': 'Science Technology',
-            '농축축산': 'Agriculture',
-            '사회복지': 'Social Welfare', 
-            '법률': 'Law'
-        }
+        if  len(self.result_dataset['category']) != 0:      
+            en_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category)]
+            ko_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category_ko)]
+            ko_category_dataset['category'] = ko_category_dataset['category'].map(self.category_mapping)
+            filter_dataset = pd.concat([en_category_dataset, ko_category_dataset])
 
-        if self.selected_sites:
-            reversed_site_mapping = dict(map(reversed, self.site_mapping.items()))
-            for index in range(len(self.selected_sites)):
-                self.selected_sites[index] = reversed_site_mapping[self.selected_sites[index]]
-            filtered_dataset = filtered_dataset[filtered_dataset['site'].isin(self.selected_sites)]
-        if self.title:
-            ko_title_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.ko_title)]
-            en_title_dataset = filtered_dataset[filtered_dataset['title'].str.contains(self.en_title, case=False)]
-            filtered_dataset = pd.concat([en_title_dataset, ko_title_dataset])
-        if self.algorithm:
-            filtered_dataset = filtered_dataset[filtered_dataset['algorithm'].str.contains(self.algorithm, case=False)]
-        if self.category:
-            en_category_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category, case=False)]
-            ko_category_dataset = filtered_dataset[filtered_dataset['category'].isin(self.category_papago)]
-            ko_category_dataset['category'] = ko_category_dataset['category'].map(category_mapping)
-            filtered_dataset = pd.concat([en_category_dataset, ko_category_dataset])
-
-        if  len(filtered_dataset['site']) != 0:
-            top_categories = filtered_dataset['category'].value_counts().head(20)
+            top_categories = filter_dataset['category'].value_counts()
             fig_top_category_counts, ax_top_category_counts = plt.subplots(figsize=(10, 6))
             top_categories.plot(kind='bar', color='lightgreen', ax=ax_top_category_counts)
-            ax_top_category_counts.set_ylabel('데이터셋 개수', fontsize=12)
+            ax_top_category_counts.set_ylabel('Number of datasets', fontsize=12)
             ax_top_category_counts.tick_params(axis='x', labelrotation=45, labelsize=8)
 
             st.pyplot(fig_top_category_counts)
@@ -294,14 +269,11 @@ dataset = sidebar.entire_dataset
 #     st.subheader("Number of datasets by category")
 #     sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
 
-
+st.subheader("Number of datasets per site")
 site_graph = sidebar.visualize_site_counts(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
-if site_graph:
-    st.subheader("Number of datasets per site")
 
+st.subheader("Number of datasets by category")
 category_graph = sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
-if category_graph:
-    st.subheader("Number of datasets by category")
 
 st.markdown('---')
 st.subheader('Total Datasets')
