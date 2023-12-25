@@ -171,8 +171,8 @@ class sidebar:
         
         reversed_site_mapping = dict(map(reversed, self.site_mapping.items()))
         for index in range(len(self.selected_sites)):
+            self.selected_list.append(self.selected_sites[index])
             self.selected_sites[index] = reversed_site_mapping[self.selected_sites[index]]
-            self.selected_list.append(self.site_mapping[self.selected_sites[index]])
         self.search_by_site_dataset = self.entire_dataset[self.entire_dataset['site'].isin(self.selected_sites)]
         
     def search_by_title(self):
@@ -210,7 +210,7 @@ class sidebar:
             en_category_dataset = self.entire_dataset[self.entire_dataset['category'].isin(self.category)]
             ko_category_dataset = self.entire_dataset[self.entire_dataset['category'].isin(self.category_ko)]
             self.search_by_category_dataset = pd.concat([en_category_dataset, ko_category_dataset])
-            self.selected_list.append(selected_category[index])
+            self.selected_list.extend(selected_category)
         else:
             self.category = list(self.category_mapping.values())
             self.category_ko = list(self.category_mapping.keys())
