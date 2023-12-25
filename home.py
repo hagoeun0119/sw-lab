@@ -45,6 +45,78 @@ def translate_with_papago(text, source_lang, target_lang):
     else:
         return None
 
+# DataLab API    
+def trending_graph():
+    CLIENT_ID, CLIENT_SECRET = '6OX6T1MTaSeSnuceUTxh', 'BsDUs9S__3'
+    url = 'https://openapi.naver.com/v1/datalab/search'
+    headers = {
+        'Content-Type': 'application/json',
+        'X-Naver-Client-Id': CLIENT_ID,
+        'X-Naver-Client-Secret': CLIENT_SECRET
+    }
+    
+    payload = {
+        'startDate': '2023-01-01',
+        'endDate': '2023-12-25',
+        'timeUnit': 'month', 
+        'keywordGroups': [
+            {'groupName': '교육', 'keywords': ['교육', 'Education']},
+            {'groupName': '재정금융', 'keywords': ['재정금융', 'Finance']},
+            # {'groupName': '식품건강', 'keywords': ['식품건강', 'Food Health']},
+            {'groupName': '문화관광', 'keywords': ['문화관광', 'Culture Travel']},
+            {'groupName': '보건의료', 'keywords': ['보건의료', 'Healthcare']},
+            # {'groupName': '재난안전', 'keywords': ['재난안전', 'Disaster Safety']},
+            # {'groupName': '교통물류', 'keywords': ['교통물류', 'Transportation']},
+            {'groupName': '환경기상', 'keywords': ['환경기상', 'Environment']},
+            # {'groupName': '과학기술', 'keywords': ['과학기술', 'Science Technology']},
+            # {'groupName': '농축축산', 'keywords': ['농축축산', 'Agriculture']},
+            # {'groupName': '사회복지', 'keywords': ['사회복지', 'Social Welfare']},
+            # {'groupName': '법률', 'keywords': ['법률', 'Law']},
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+    
+    if response.status_code == 200:
+        data = response.json()
+        df_education = pd.DataFrame(data['results'][0]['data'])
+        df_finance = pd.DataFrame(data['results'][1]['data'])
+        # df_food_health = pd.DataFrame(data['results'][2]['data'])
+        df_culture_travel = pd.DataFrame(data['results'][3]['data'])
+        df_healthcare = pd.DataFrame(data['results'][4]['data'])
+        # df_disaster_safety = pd.DataFrame(data['results'][5]['data'])
+        # df_transportation = pd.DataFrame(data['results'][6]['data'])
+        df_environment = pd.DataFrame(data['results'][2]['data']) # 인덱스가 순차적으로 있어야되므로 7 -> 2로 임시 설정
+        # df_science_technology = pd.DataFrame(data['results'][8]['data'])
+        # df_agriculture = pd.DataFrame(data['results'][9]['data'])
+        # df_social_welfare = pd.DataFrame(data['results'][10]['data'])
+        # df_law = pd.DataFrame(data['results'][11]['data'])
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        ax.plot(df_education['period'], df_education['ratio'], label='교육', color='blue')
+        ax.plot(df_finance['period'], df_finance['ratio'], label='재정금융', color='green')
+        # ax.plot(df_food_health['period'], df_food_health['ratio'], label='식품건강', color='red')
+        ax.plot(df_culture_travel['period'], df_culture_travel['ratio'], label='문화관광', color='orange')
+        ax.plot(df_healthcare['period'], df_healthcare['ratio'], label='보건의료', color='purple')
+        # ax.plot(df_disaster_safety['period'], df_disaster_safety['ratio'], label='재난안전', color='pink')
+        # ax.plot(df_transportation['period'], df_transportation['ratio'], label='교통물류', color='cyan')
+        ax.plot(df_environment['period'], df_environment['ratio'], label='환경기상', color='magenta')
+        # ax.plot(df_science_technology['period'], df_science_technology['ratio'], label='과학기술', color='yellow')
+        # ax.plot(df_agriculture['period'], df_agriculture['ratio'], label='농축축산', color='lime')
+        # ax.plot(df_social_welfare['period'], df_social_welfare['ratio'], label='사회복지', color='brown')
+        # ax.plot(df_law['period'], df_law['ratio'], label='법', color='gray')
+
+        ax.set_xlabel('Period')
+        ax.set_ylabel('Ratio')
+        ax.set_title('Trending Graph - Category')
+        ax.legend()
+
+        st.pyplot(fig)
+    else:
+        print('API 요청 실패:', response.status_code)
+
+
 def get_dataset():
     dataset = collection.find()
     df = pd.DataFrame(dataset)
@@ -279,6 +351,8 @@ site_graph = sidebar.visualize_site_counts(dataset, sidebar.selected_sites, side
 
 st.subheader("Number of datasets by category")
 category_graph = sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
+
+trending_graph()
 
 st.markdown('---')
 st.subheader('Total Datasets')
