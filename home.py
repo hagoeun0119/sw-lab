@@ -1,13 +1,14 @@
-import datetime
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import streamlit as st
 from matplotlib import font_manager, rc
 
+from collections import Counter
 from pymongo import MongoClient
 from dateutil.relativedelta import relativedelta
 
+from datetime import datetime
 import requests
 import json
 
@@ -157,7 +158,7 @@ class sidebar:
             '교육': 'Education',
             '재정금융': 'Finance',
             '식품건강': 'Food Health',
-            '문화관광': 'Culture Travel',
+            '문화관광': 'Travel',
             '보건의료': 'Healthcare',
             '재난안전': 'Disaster Safety',
             '교통물류': 'Transportation',
@@ -202,6 +203,7 @@ class sidebar:
             if self.selected_list:
                 st.info('Search Keyword: ' + ', '.join(self.selected_list))
 
+            self.result_dataset = selected_dataset
             selected_dataset = selected_dataset.drop('_id', axis=1)
             selected_dataset = selected_dataset.astype(str)
             selected_dataset['download'] = pd.to_numeric(selected_dataset['download'], errors='coerce')
@@ -210,7 +212,6 @@ class sidebar:
 
             st.dataframe(selected_dataset)
             st.write(f"Total number of datasets: {len(selected_dataset)}")
-            self.result_dataset = selected_dataset
         else:
             self.result_dataset = self.entire_dataset
             
@@ -219,7 +220,7 @@ class sidebar:
             "**📆 Search by Period**",
             ["Total", "Last month", "Last 6 months", "Last year"])
         self.sidebar.text("\n")
-        today = datetime.datetime.now()
+        today = datetime.now()
 
         if date == "Total":
             self.search_by_date_dataset = self.entire_dataset
@@ -269,20 +270,20 @@ class sidebar:
             self.search_by_algorithm_dataset = self.entire_dataset.query('algorithm.str.contains(@algorithm, case=False)')
 
     def search_by_category(self):
-        selected_category = self.sidebar.multiselect("**📁 Find with Category**", ["Education", "Finance", "Healthcare", "Food Health", "Social Welfare", "Disaster Safety", "Culture Travel", "Transportation", "Environment", "Science Technology", "Agriculture", "Law"])
+        self.selected_category = self.sidebar.multiselect("**📁 Find with Category**", ["Education", "Finance", "Healthcare", "Food Health", "Social Welfare", "Disaster Safety", "Travel", "Transportation", "Environment", "Science Technology", "Agriculture", "Law"])
         self.sidebar.text("\n")
-        self.category = selected_category  # 클래스 변수로 선택된 사이트 저장
+        self.category = self.selected_category  # 클래스 변수로 선택된 사이트 저장
         self.category_ko = [] 
 
         reversed_category_mapping = dict(map(reversed, self.category_mapping.items()))
-        for index in range(len(selected_category)):
+        for index in range(len(self.selected_category)):
             self.category_ko.append(reversed_category_mapping[self.category[index]])
 
-        if selected_category:               
+        if self.selected_category:               
             en_category_dataset = self.entire_dataset[self.entire_dataset['category'].isin(self.category)]
             ko_category_dataset = self.entire_dataset[self.entire_dataset['category'].isin(self.category_ko)]
             self.search_by_category_dataset = pd.concat([en_category_dataset, ko_category_dataset])
-            self.selected_list.extend(selected_category)
+            self.selected_list.extend(self.selected_category)
         else:
             self.category = list(self.category_mapping.values())
             self.category_ko = list(self.category_mapping.keys())
@@ -310,22 +311,60 @@ class sidebar:
 
     def visualize_top_categories(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
 
-        if  len(self.result_dataset['category']) != 0:      
-            en_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category)]
-            ko_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category_ko)]
-            ko_category_dataset['category'] = ko_category_dataset['category'].map(self.category_mapping)
-            filter_dataset = pd.concat([en_category_dataset, ko_category_dataset])
+        # if  len(self.result_dataset['category']) != 0:      
+        #     en_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category)]
+        #     ko_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category_ko)]
+        #     ko_category_dataset['category'] = ko_category_dataset['category'].map(self.category_mapping)
+        #     filter_dataset = pd.concat([en_category_dataset, ko_category_dataset])
 
-            top_categories = filter_dataset['category'].value_counts()
-            fig_top_category_counts, ax_top_category_counts = plt.subplots(figsize=(10, 6))
-            top_categories.plot(kind='bar', color='lightgreen', ax=ax_top_category_counts)
-            ax_top_category_counts.set_ylabel('Number of datasets', fontsize=12)
-            ax_top_category_counts.tick_params(axis='x', labelrotation=45, labelsize=8)
+        #     top_categories = filter_dataset['category'].value_counts()
+        #     fig_top_category_counts, ax_top_category_counts = plt.subplots(figsize=(10, 6))
+        #     top_categories.plot(kind='bar', color='lightgreen', ax=ax_top_category_counts)
+        #     ax_top_category_counts.set_ylabel('Number of datasets', fontsize=12)
+        #     ax_top_category_counts.tick_params(axis='x', labelrotation=45, labelsize=8)
 
-            st.pyplot(fig_top_category_counts)
-            st.table(top_categories.reset_index().rename(columns={"index": "카테고리", "category": "데이터셋 개수"}))
+        #     st.pyplot(fig_top_category_counts)
+        #     st.table(top_categories.reset_index().rename(columns={"index": "카테고리", "category": "데이터셋 개수"}))
 
-            return fig_top_category_counts
+        #     return fig_top_category_counts
+
+        reversed_category_mapping = dict(map(reversed, self.category_mapping.items()))
+
+        if not self.selected_category:
+            self.selected_category = list(self.category_mapping.values())
+
+        date_cnt_map = {}
+
+        for month in range(5, 13):
+            cnt_dataset = []
+            for category in self.selected_category:
+                category_ko = reversed_category_mapping[category]
+                target_year = datetime.now().year - 1
+                target_date_dataset = self.result_dataset.query('date.dt.year == @target_year and date.dt.month == @month')
+                target_category_dataset = target_date_dataset.query('category == @category or category == @category_ko')
+                cnt_dataset.append(len(target_category_dataset))
+            date_cnt_map[f'{target_year}-{month}'] = cnt_dataset
+        date_cnt_chart = pd.DataFrame(date_cnt_map)
+        date_cnt_chart.index = self.selected_category
+        date_cnt_chart = date_cnt_chart.transpose()
+        date_cnt_chart.index = pd.to_datetime(date_cnt_chart.index)
+        st.line_chart(date_cnt_chart, width=600, use_container_width=False)
+        return date_cnt_chart
+
+    
+    
+            
+
+    # plt.figure(figsize = (10, 8))
+    # frequency_data = nltk.Text(NN_words, name="최빈어")
+    # frequency_data.plot(5)
+    # plt.savefig(fr"C:\Users\Goeun\OneDrive\문서\Selenium\Popular\popular_keyword_{target_year}")
+
+
+
+
+        
+
 
 # main
 st.title("📈 Meta-Dataset Searching System")
@@ -349,10 +388,10 @@ dataset = sidebar.entire_dataset
 st.subheader("Number of datasets per site")
 site_graph = sidebar.visualize_site_counts(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
 
-st.subheader("Number of datasets by category")
+st.subheader("Number of categories per month")
 category_graph = sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
 
-trending_graph()
+#trending_graph()
 
 st.markdown('---')
 st.subheader('Total Datasets')
