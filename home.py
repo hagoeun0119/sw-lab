@@ -240,7 +240,11 @@ class sidebar:
     def search_by_site(self):
         selected_sites = self.sidebar.multiselect("**🌍 Search Dataset Site**", ["Public Data Portal", "Seoul Open Data Plaza", "AI_hub", "Kaggle", "Data.gov"])
         self.sidebar.text("\n")
-        self.selected_sites = selected_sites  # 클래스 변수로 선택된 사이트 저장
+
+        if not selected_sites:
+            self.selected_sites = list(self.site_mapping.values())
+        else:
+            self.selected_sites = selected_sites  # 클래스 변수로 선택된 사이트 저장
         
         reversed_site_mapping = dict(map(reversed, self.site_mapping.items()))
         for index in range(len(self.selected_sites)):
@@ -335,7 +339,7 @@ class sidebar:
 
         date_cnt_map = {}
 
-        for month in range(5, 13):
+        for month in range(1, 13):
             cnt_dataset = []
             for category in self.selected_category:
                 category_ko = reversed_category_mapping[category]
@@ -348,7 +352,7 @@ class sidebar:
         date_cnt_chart.index = self.selected_category
         date_cnt_chart = date_cnt_chart.transpose()
         date_cnt_chart.index = pd.to_datetime(date_cnt_chart.index)
-        st.line_chart(date_cnt_chart, width=600, use_container_width=False)
+        st.line_chart(date_cnt_chart, width=700, use_container_width=False)
         return date_cnt_chart
 
     
