@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import streamlit as st
+import seaborn as sns
 from matplotlib import font_manager, rc
 
 from collections import Counter
@@ -297,10 +298,31 @@ class sidebar:
         self.latest_time = self.sidebar.checkbox("**Last updated**")
         self.download = self.sidebar.checkbox("**By Downloads**")
 
+    def visualize_site_and_category_counts(self, dataset):
+        if dataset is not None: 
+            dataset['site'] = dataset['site'].map(self.site_mapping) 
+            dataset['category'] = dataset['category'].map(self.category_mapping)
+        
+            filtered_dataset = dataset[dataset['category'].isin(self.selected_category)]
+            grouped_data = filtered_dataset.groupby(['site', 'category']).size().reset_index(name='count')
+
+            plt.figure(figsize=(12, 8))
+            sns.barplot(x='site', y='count', hue='category', data=grouped_data)
+            plt.xlabel('Site')
+            plt.ylabel('Number of datasets')
+            plt.title('Number of datasets per site and category')
+            plt.xticks(rotation=45)
+            plt.legend(title='Category', bbox_to_anchor=(1, 1), loc='upper left')
+            plt.tight_layout()
+
+            st.pyplot(plt.gcf())
+
+
     # 데이터 시각화
     def visualize_site_counts(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
 
         self.result_dataset['site'] = self.result_dataset['site'].map(self.site_mapping) # 사이트 영어로 변환
+        self.result_dataset['category'] = self.result_dataset['category'].map(self.site_mapping)
 
         if  len(self.result_dataset['site']) != 0:
             site_counts = self.result_dataset['site'].value_counts()
@@ -312,6 +334,8 @@ class sidebar:
             st.pyplot(fig_site_counts)
             st.table(site_counts.reset_index().rename(columns={"index": "사이트", "site": "데이터셋 개수"}))
             return fig_site_counts
+        
+        
 
     def visualize_top_categories(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
 
@@ -357,8 +381,6 @@ class sidebar:
 
     
     
-            
-
     # plt.figure(figsize = (10, 8))
     # frequency_data = nltk.Text(NN_words, name="최빈어")
     # frequency_data.plot(5)
@@ -394,6 +416,10 @@ site_graph = sidebar.visualize_site_counts(dataset, sidebar.selected_sites, side
 
 st.subheader("Number of categories per month")
 category_graph = sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
+
+st.subheader("Number of datasets per site and category")
+site_and_category_graph = sidebar.visualize_site_and_category_counts(dataset)
+
 
 #trending_graph()
 
