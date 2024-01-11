@@ -167,7 +167,7 @@ class sidebar:
             '과학기술': 'Science Technology',
             '농축축산': 'Agriculture',
             '사회복지': 'Social Welfare', 
-            '법률': 'Law'
+            '법률': 'Law',
         }
 
         self.search_by_date()
@@ -298,13 +298,25 @@ class sidebar:
         self.latest_time = self.sidebar.checkbox("**Last updated**")
         self.download = self.sidebar.checkbox("**By Downloads**")
 
-    def visualize_site_and_category_counts(self, dataset):
-        if dataset is not None: 
-            dataset['site'] = dataset['site'].map(self.site_mapping) 
-            dataset['category'] = dataset['category'].map(self.category_mapping)
+    def visualize_site_and_category_counts(self):
+
+        # reversed_category_mapping = dict(map(reversed, self.category_mapping.items()))
+
+        # for reversed_category in reversed_category_mapping:
+        #     self.category_mapping[reversed_category] = reversed_category_mapping[reversed_category]
+
+        # # if not selected category or site show all dataset
+        # if not self.selected_category:
+        #     self.selected_category = list(self.category_mapping.values())
         
-            filtered_dataset = dataset[dataset['category'].isin(self.selected_category)]
-            grouped_data = filtered_dataset.groupby(['site', 'category']).size().reset_index(name='count')
+        # if not self.selected_sites:
+        #     self.selected_sites = list(self.selected_sites.values())
+
+        # if self.result_dataset is not None: 
+        #     self.result_dataset['site'] = self.result_dataset['site'].map(self.site_mapping)
+        #     self.result_dataset['category'] = self.result_dataset['category'].isin(self.category_mapping).map(self.site_mapping)
+        
+            grouped_data = self.result_dataset.groupby(['site', 'category']).size().reset_index(name='count')
 
             plt.figure(figsize=(12, 8))
             sns.barplot(x='site', y='count', hue='category', data=grouped_data)
@@ -319,10 +331,18 @@ class sidebar:
 
 
     # 데이터 시각화
-    def visualize_site_counts(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
+    def visualize_site_counts(self):
+
+        reversed_category_mapping = dict(map(reversed, self.category_mapping.items()))
 
         self.result_dataset['site'] = self.result_dataset['site'].map(self.site_mapping) # 사이트 영어로 변환
-        self.result_dataset['category'] = self.result_dataset['category'].map(self.site_mapping)
+#        self.result_dataset[self.result_dataset['category'].isin(self.category_mapping) == True].map(self.category_mapping)
+        en_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category)]
+        ko_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category_ko)]
+        ko_category_dataset['category'] = ko_category_dataset['category'].map(self.category_mapping)
+        other_dataset = self.result_dataset[self.result_dataset['category'] == 'other']
+        self.result_dataset = pd.concat([en_category_dataset, ko_category_dataset, other_dataset])
+        self.result_dataset.reset_index(drop=True, inplace=True)
 
         if  len(self.result_dataset['site']) != 0:
             site_counts = self.result_dataset['site'].value_counts()
@@ -335,9 +355,7 @@ class sidebar:
             st.table(site_counts.reset_index().rename(columns={"index": "사이트", "site": "데이터셋 개수"}))
             return fig_site_counts
         
-        
-
-    def visualize_top_categories(self, dataset, selected_sites=None, title=None, algorithm=None, category=None):
+    def visualize_top_categories(self):
 
         # if  len(self.result_dataset['category']) != 0:      
         #     en_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category)]
@@ -378,8 +396,6 @@ class sidebar:
         date_cnt_chart.index = pd.to_datetime(date_cnt_chart.index)
         st.line_chart(date_cnt_chart, width=700, use_container_width=False)
         return date_cnt_chart
-
-    
     
     # plt.figure(figsize = (10, 8))
     # frequency_data = nltk.Text(NN_words, name="최빈어")
@@ -412,13 +428,13 @@ dataset = sidebar.entire_dataset
 #     sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
 
 st.subheader("Number of datasets per site")
-site_graph = sidebar.visualize_site_counts(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
+site_graph = sidebar.visualize_site_counts()
 
 st.subheader("Number of categories per month")
-category_graph = sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
+category_graph = sidebar.visualize_top_categories()
 
 st.subheader("Number of datasets per site and category")
-site_and_category_graph = sidebar.visualize_site_and_category_counts(dataset)
+site_and_category_graph = sidebar.visualize_site_and_category_counts()
 
 
 #trending_graph()
