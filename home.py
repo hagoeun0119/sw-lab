@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import streamlit as st
 import seaborn as sns
 from matplotlib import font_manager, rc
+import altair as alt
 
 from collections import Counter
 from pymongo import MongoClient
@@ -167,7 +168,7 @@ class sidebar:
             '과학기술': 'Science Technology',
             '농축축산': 'Agriculture',
             '사회복지': 'Social Welfare', 
-            '법률': 'Law',
+            '법률': 'Law'
         }
 
         self.search_by_date()
@@ -318,22 +319,19 @@ class sidebar:
         
             grouped_data = self.result_dataset.groupby(['site', 'category']).size().reset_index(name='count')
 
+            plt.rc('font', size=16)
             plt.figure(figsize=(12, 8))
             sns.barplot(x='site', y='count', hue='category', data=grouped_data)
             plt.xlabel('Site')
             plt.ylabel('Number of datasets')
-            plt.title('Number of datasets per site and category')
             plt.xticks(rotation=45)
-            plt.legend(title='Category', bbox_to_anchor=(1, 1), loc='upper left')
+            plt.legend(title='Category', loc='best')
             plt.tight_layout()
 
             st.pyplot(plt.gcf())
 
-
     # 데이터 시각화
     def visualize_site_counts(self):
-
-        reversed_category_mapping = dict(map(reversed, self.category_mapping.items()))
 
         self.result_dataset['site'] = self.result_dataset['site'].map(self.site_mapping) # 사이트 영어로 변환
 #        self.result_dataset[self.result_dataset['category'].isin(self.category_mapping) == True].map(self.category_mapping)
@@ -355,57 +353,105 @@ class sidebar:
             st.table(site_counts.reset_index().rename(columns={"index": "사이트", "site": "데이터셋 개수"}))
             return fig_site_counts
         
-    def visualize_top_categories(self):
+    def visualize_number_of_datasets_for_top_categories(self):
+        # TODO 수정 필요
+        reversed_category_mapping = dict(map(reversed, self.category_mapping.items()))
+        ko_category_dataset = self.entire_dataset[self.entire_dataset['category'].isin(list(self.category_mapping.keys()))]
+        ko_category_dataset = ko_category_dataset[ko_category_dataset.category != 'other']
+        ko_category_dataset['category'] = ko_category_dataset['category'].map(self.category_mapping)
+        en_category_dataset = self.entire_dataset[self.entire_dataset['category'].isin(list(reversed_category_mapping.keys()))]
+        #other_category_dataset = self.entire_dataset[self.entire_dataset['category']=="other"]
+        total_category_dataset = pd.concat([en_category_dataset, ko_category_dataset])
+        
+        top_category_counts_fig, top_category_counts_axes = plt.subplots(1, 3, figsize=(15, 6)) 
 
-        # if  len(self.result_dataset['category']) != 0:      
-        #     en_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category)]
-        #     ko_category_dataset = self.result_dataset[self.result_dataset['category'].isin(self.category_ko)]
-        #     ko_category_dataset['category'] = ko_category_dataset['category'].map(self.category_mapping)
-        #     filter_dataset = pd.concat([en_category_dataset, ko_category_dataset])
+        ko_top_categories = ko_category_dataset['category'].value_counts()
+        ko_top_categories = ko_top_categories.head(5)
+        ko_top_categories = ko_top_categories.to_frame().reset_index()
+        ko_top_categories.plot(kind='bar',x='category',y='count',ax=top_category_counts_axes[0], color="#ed5559", legend=False)
+        top_category_counts_axes[0].set_ylabel('Count', fontsize=15)
+        top_category_counts_axes[0].set_title('Domestic')
+        top_category_counts_axes[0].tick_params(axis='x', labelrotation=70)
+        
+        en_top_categories = en_category_dataset['category'].value_counts()
+        en_top_categories = en_top_categories.head(5)
+        en_top_categories = en_top_categories.to_frame().reset_index()
+        en_top_categories.plot(kind='bar',x='category',y='count',ax=top_category_counts_axes[1], color="#ffc25c", legend=False)
+        top_category_counts_axes[1].set_title('International')
+        #top_category_counts_axes[1].set_ylabel('Count', fontsize=15)
+        top_category_counts_axes[1].tick_params(axis='x', labelrotation=70)
+    
+        total_top_categories = total_category_dataset['category'].value_counts()
+        total_top_categories = total_top_categories.head(5)
+        total_top_categories = total_top_categories.to_frame().reset_index()
+        total_top_categories.plot(kind='bar',x='category',y='count',ax=top_category_counts_axes[2], color="#438add", legend=False)
+        top_category_counts_axes[2].set_title('Integrated')
+        #top_category_counts_axes[2].set_ylabel('Count', fontsize=15)
+        top_category_counts_axes[2].tick_params(axis='x', labelrotation=70)
+        #plt.tight_layout()
+        st.pyplot(top_category_counts_fig)
+        
+        self.visualize_number_of_datasets_for_top_categories_per_month(total_top_categories)
 
-        #     top_categories = filter_dataset['category'].value_counts()
-        #     fig_top_category_counts, ax_top_category_counts = plt.subplots(figsize=(10, 6))
-        #     top_categories.plot(kind='bar', color='lightgreen', ax=ax_top_category_counts)
-        #     ax_top_category_counts.set_ylabel('Number of datasets', fontsize=12)
-        #     ax_top_category_counts.tick_params(axis='x', labelrotation=45, labelsize=8)
+        return top_category_counts_fig
 
-        #     st.pyplot(fig_top_category_counts)
-        #     st.table(top_categories.reset_index().rename(columns={"index": "카테고리", "category": "데이터셋 개수"}))
-
-        #     return fig_top_category_counts
+    def visualize_number_of_datasets_per_month_graph(self):
 
         reversed_category_mapping = dict(map(reversed, self.category_mapping.items()))
 
         if not self.selected_category:
             self.selected_category = list(self.category_mapping.values())
 
-        date_cnt_map = {}
+        target_year = datetime.now().year - 1
 
-        for month in range(1, 13):
+        dataset_cnt_per_month_df = pd.DataFrame({"Date": [f'{target_year}-{month}' for month in range(7, 13)]})
+
+        for category in self.selected_category:
             cnt_dataset = []
-            for category in self.selected_category:
-                category_ko = reversed_category_mapping[category]
-                target_year = datetime.now().year - 1
-                target_date_dataset = self.result_dataset.query('date.dt.year == @target_year and date.dt.month == @month')
-                target_category_dataset = target_date_dataset.query('category == @category or category == @category_ko')
-                cnt_dataset.append(len(target_category_dataset))
-            date_cnt_map[f'{target_year}-{month}'] = cnt_dataset
-        date_cnt_chart = pd.DataFrame(date_cnt_map)
-        date_cnt_chart.index = self.selected_category
-        date_cnt_chart = date_cnt_chart.transpose()
-        date_cnt_chart.index = pd.to_datetime(date_cnt_chart.index)
-        st.line_chart(date_cnt_chart, width=700, use_container_width=False)
-        return date_cnt_chart
+            category_ko = reversed_category_mapping[category]
+            target_category_dataset = self.result_dataset.query('category == @category or category == @category_ko')
+            for month in range(7, 13):
+                target_date_dataset = target_category_dataset.query('date.dt.year == @target_year and date.dt.month == @month')
+                cnt_dataset.append(len(target_date_dataset))
+            dataset_cnt_per_month_df[category] = cnt_dataset
+        dataset_cnt_per_month_df =dataset_cnt_per_month_df.melt('Date', var_name='Category', value_name='Count')
+        chart = alt.Chart(dataset_cnt_per_month_df).mark_line().encode(
+                    x=alt.X('Date'),
+                    y=alt.Y('Count'),
+                    color=alt.Color("Category").legend(orient="top-left")
+                    ).properties(title="Number of categories per month")
+        chart.width = 450
+        chart.height = 400
+        dataset_cnt_per_month_df["Date"] = pd.to_datetime(dataset_cnt_per_month_df["Date"])
+        st.altair_chart(chart, use_container_width=False)
+        return dataset_cnt_per_month_df
     
-    # plt.figure(figsize = (10, 8))
-    # frequency_data = nltk.Text(NN_words, name="최빈어")
-    # frequency_data.plot(5)
-    # plt.savefig(fr"C:\Users\Goeun\OneDrive\문서\Selenium\Popular\popular_keyword_{target_year}")
+    def visualize_number_of_datasets_for_top_categories_per_month(self, dataset):
 
+        target_year = datetime.now().year - 1
 
-
-
-        
+        reversed_category_mapping = dict(map(reversed, self.category_mapping.items()))
+        dataset_cnt_per_month_df = pd.DataFrame({"Date": [f'{target_year}-{month}' for month in range(7, 13)]})
+        top_categories = dataset['category'].values.tolist()
+        for category in top_categories:
+            cnt_dataset = []
+            category_ko = reversed_category_mapping[category]
+            target_category_dataset = self.entire_dataset.query('category == @category or category == @category_ko')
+            for month in range(7, 13):
+                target_date_dataset = target_category_dataset.query('date.dt.year == @target_year and date.dt.month == @month')
+                cnt_dataset.append(len(target_date_dataset))
+            dataset_cnt_per_month_df[category] = cnt_dataset
+        dataset_cnt_per_month_df =dataset_cnt_per_month_df.melt('Date', var_name='Category', value_name='Count')
+        chart = alt.Chart(dataset_cnt_per_month_df).mark_line().encode(
+                    x=alt.X('Date'),
+                    y=alt.Y('Count'),
+                    color=alt.Color("Category").legend(orient="top-left")
+                    ).properties(title="Number of datasets for top categories per month")
+        chart.width = 450
+        chart.height = 400
+        dataset_cnt_per_month_df["Date"] = pd.to_datetime(dataset_cnt_per_month_df["Date"])
+        st.altair_chart(chart, use_container_width=False)
+        return dataset_cnt_per_month_df
 
 
 # main
@@ -417,25 +463,17 @@ st.markdown('---')
 sidebar = sidebar()
 dataset = sidebar.entire_dataset
 
-# col1, col2 = st.columns(2)
-
-# with col1:
-#     st.subheader("Number of datasets per site")
-#     sidebar.visualize_site_counts(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
-
-# with col2:
-#     st.subheader("Number of datasets by category")
-#     sidebar.visualize_top_categories(dataset, sidebar.selected_sites, sidebar.title, sidebar.algorithm, sidebar.category)
-
 st.subheader("Number of datasets per site")
 site_graph = sidebar.visualize_site_counts()
 
-st.subheader("Number of categories per month")
-category_graph = sidebar.visualize_top_categories()
+st.subheader("Number of datasets for top categories")
+category_graph = sidebar.visualize_number_of_datasets_for_top_categories()
 
-st.subheader("Number of datasets per site and category")
+st.subheader("Number of datasets per month graph")
+category_graph = sidebar.visualize_number_of_datasets_per_month_graph()
+
+st.subheader("Number of datasets per site")
 site_and_category_graph = sidebar.visualize_site_and_category_counts()
-
 
 #trending_graph()
 
